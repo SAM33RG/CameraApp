@@ -1,0 +1,10 @@
+Using NavigationView to Switch between preview, capture Image and record video Fragments.
+
+Use of Material design throughout the app.
+
+Limiting the resolution of both still and video to 1080p;
+
+implementation of features
+    select resolution
+    trigger flash on/off/auto
+
