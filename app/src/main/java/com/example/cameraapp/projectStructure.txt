@@ -1,10 +1,11 @@
 Using Fragments to Switch between preview, capture Image and record video Fragments.
 
-Use of Material design throughout the app.
-
-Limiting the resolution of both still and video to 1080p;
+Limiting the resolution of both only video to 1080p;
 
 implementation of features
-    select resolution
+    select resolution [DONE]
+    select camera id [DONE]
     trigger flash on/off/auto
+    click picture
+    record video
 

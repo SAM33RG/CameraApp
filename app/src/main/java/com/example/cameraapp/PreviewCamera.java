@@ -111,7 +111,6 @@ public class PreviewCamera extends Fragment implements Handler.Callback{
                 mIsCameraSurfaceCreated = true;
                 mHandler.sendEmptyMessage(MSG_CAMERA_SURFACE_CREATED);
 
-
             }
 
             @Override
