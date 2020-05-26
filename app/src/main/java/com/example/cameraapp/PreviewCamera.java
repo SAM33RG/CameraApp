@@ -1,5 +1,6 @@
 package com.example.cameraapp;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
@@ -7,6 +8,7 @@ import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.os.Bundle;
 
@@ -25,14 +27,12 @@ import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Spinner;
-import android.widget.Toast;
 
 import com.orhanobut.logger.Logger;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.math.BigInteger;
-
+import java.util.List;
 
 
 public class PreviewCamera extends Fragment implements Handler.Callback{
@@ -40,7 +40,7 @@ public class PreviewCamera extends Fragment implements Handler.Callback{
     private static final int MSG_CAMERA_DEVICE_OPENED = 1;
     private static final int MSG_SURFACE_SIZE_FOUND = 2;
 
-    private Handler mHandler;
+    private Handler mHandler =  new Handler(this);
 
     private AutoFitSurFaceView mSurfaceView;
     private SurfaceHolder mSurfaceHolder;
@@ -65,7 +65,8 @@ public class PreviewCamera extends Fragment implements Handler.Callback{
 
 
     private boolean CAMERA_CONFIGURED = false;
-    private String CAMERA_ID = null;
+    private String SELECTED_CAMERA_ID = null;
+    private Size SELECTED_RESOLUTION = null;
 
 
     public PreviewCamera() {
@@ -115,6 +116,7 @@ public class PreviewCamera extends Fragment implements Handler.Callback{
 
             @Override
             public void surfaceDestroyed(SurfaceHolder surfaceHolder) {
+                mIsCameraSurfaceCreated = false;
 
             }
         });
@@ -130,6 +132,7 @@ public class PreviewCamera extends Fragment implements Handler.Callback{
 
     }
 
+
     private void populateCameraIdSpinner() {
 
         ArrayAdapter<String> adapter = new ArrayAdapter<String>(getContext(),R.layout.support_simple_spinner_dropdown_item, mCameraIdList);
@@ -137,10 +140,10 @@ public class PreviewCamera extends Fragment implements Handler.Callback{
         mCameraIdSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                CAMERA_ID = mCameraIdList.get(position);
+                SELECTED_CAMERA_ID = mCameraIdList.get(position);
 
-                Logger.d("Camera id spinner id : "+CAMERA_ID) ;
-                populateCameraResSpinner(CAMERA_ID);
+                Logger.d("Camera id spinner selected id: "+ SELECTED_CAMERA_ID) ;
+                populateCameraResSpinner(SELECTED_CAMERA_ID);
             }
 
             @Override
@@ -150,14 +153,15 @@ public class PreviewCamera extends Fragment implements Handler.Callback{
         });
     }
 
-    private void populateCameraResSpinner(String cameraId) {
+    private void populateCameraResSpinner(final String cameraId) {
 
         try {
             CameraCharacteristics characteristics = mCameraManager.getCameraCharacteristics(cameraId);
             StreamConfigurationMap configs = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             mCameraSizeList =  new ArrayList<Size>(Arrays.asList(configs.getOutputSizes(SurfaceTexture.class))) ;
+            mCameraSizeStringList.clear();
             for(Size s : mCameraSizeList){
-                Logger.d(""+s.getHeight()+"X"+s.getWidth());
+//                Logger.d(""+s.getHeight()+"X"+s.getWidth());
                 mCameraSizeStringList.add(""+s.getHeight()+"X"+s.getWidth());
             }
             ArrayAdapter<String> adapter = new ArrayAdapter<String>(getContext(),R.layout.support_simple_spinner_dropdown_item, mCameraSizeStringList);
@@ -165,7 +169,14 @@ public class PreviewCamera extends Fragment implements Handler.Callback{
             mCameraResSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
                 @Override
                 public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                    Logger.d("Camera res spinner id : "+mCameraSizeStringList.get(position));
+                    Logger.d("Camera res spinner current resolution : "+mCameraSizeStringList.get(position)+" of camera id: "+ cameraId);
+                    SELECTED_RESOLUTION = mCameraSizeList.get(position);
+                    CAMERA_CONFIGURED =false;
+                    if(mCameraCaptureSession!=null)
+                        mCameraCaptureSession.close();
+                    if(mCameraDevice!=null)
+                        mCameraDevice.close();
+                    initializeCamera();
                 }
 
                 @Override
@@ -180,6 +191,81 @@ public class PreviewCamera extends Fragment implements Handler.Callback{
 
     }
 
+
+
+    @SuppressLint("MissingPermission")
+    private void initializeCamera() {
+
+        mCameraStateCallBack = new CameraDevice.StateCallback() {
+            @Override
+            public void onOpened(@NonNull CameraDevice cameraDevice) {
+                Logger.d("camera state onOpened");
+
+                mCameraDevice = cameraDevice;
+
+                mHandler.sendEmptyMessage(MSG_CAMERA_DEVICE_OPENED);
+
+
+            }
+
+            @Override
+            public void onDisconnected(@NonNull CameraDevice cameraDevice) {
+
+                Logger.d("camera state onDisconnected");
+            }
+
+            @Override
+            public void onError(@NonNull CameraDevice cameraDevice, int i) {
+
+            }
+        };
+
+        try {
+            mCameraManager.openCamera(SELECTED_CAMERA_ID, mCameraStateCallBack, null);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+
+
+    }
+
+
+
+    private void startCamera() {
+
+        mCameraCaptureSessionStateCallback = new CameraCaptureSession.StateCallback() {
+            @Override
+            public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
+                mCameraCaptureSession = cameraCaptureSession;
+
+                try {
+                    CaptureRequest.Builder previewRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+
+                    previewRequestBuilder.addTarget(mCameraSurface);
+
+                    mCameraCaptureSession.setRepeatingRequest(previewRequestBuilder.build(), null, null);
+                } catch (CameraAccessException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            @Override
+            public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
+
+            }
+        };
+
+        List<Surface> surfaceList = new ArrayList<Surface>();
+        surfaceList.add(mCameraSurface);
+
+        try {
+            mCameraDevice.createCaptureSession(surfaceList, mCameraCaptureSessionStateCallback, null);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+
+    }
+
     @Override
     public boolean handleMessage(@NonNull Message message) {
         switch (message.what) {
@@ -188,36 +274,19 @@ public class PreviewCamera extends Fragment implements Handler.Callback{
                 if (mIsCameraSurfaceCreated && mCameraDevice != null && !CAMERA_CONFIGURED) {
 //                    startCamera();
                     CAMERA_CONFIGURED =true;
-                    CameraCharacteristics characteristics = null;
-                    try {
-                        characteristics = mCameraManager.getCameraCharacteristics(CAMERA_ID);
-                    } catch (CameraAccessException e) {
-                        e.printStackTrace();
-                    }
-                    StreamConfigurationMap configs = characteristics.get(
-                            CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-
-                  /*  for (android.util.Size size : configs.getOutputSizes(SurfaceTexture.class)) {
-
-                        if(size.getWidth()==720 && size.getHeight()/size.getWidth() - 4/3<0.001){
-                            msize =size;
-                            Logger.d(" "+size.getHeight()+" "+size.getWidth());
-                            mSurfaceHolder.setFixedSize(msize.getHeight(),msize.getWidth());
-                            mHandler.sendEmptyMessage(MSG_SURFACE_SIZE_FOUND);
-                            break;
-
-                        }
-
-                    }*/
-                    // mHandler.sendEmptyMessage(MSG_SURFACE_SIZE_FOUND);
+                    mSurfaceHolder.setFixedSize(SELECTED_RESOLUTION.getWidth(),SELECTED_RESOLUTION.getHeight());
+                    mSurfaceView.setAspectRatio(SELECTED_RESOLUTION.getHeight(),SELECTED_RESOLUTION.getWidth());
+                     mHandler.sendEmptyMessage(MSG_SURFACE_SIZE_FOUND);
 
                 }
                 break;
             case MSG_SURFACE_SIZE_FOUND:
-               // startCamera();
+                startCamera();
                 break;
         }
         return true;
 
     }
+
+
 }
