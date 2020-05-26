@@ -2,22 +2,30 @@ package com.example.cameraapp;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.CaptureFailure;
 import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.CaptureResult;
+import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
+import android.media.Image;
+import android.media.ImageReader;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
+import android.util.Log;
 import android.util.Size;
 import android.view.LayoutInflater;
 import android.view.Surface;
@@ -26,16 +34,25 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.Spinner;
 
 import com.orhanobut.logger.Logger;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 
-public class PreviewCamera extends Fragment implements Handler.Callback{
+public class PreviewCamera extends Fragment implements Handler.Callback, View.OnClickListener{
     private static final int MSG_CAMERA_SURFACE_CREATED = 0;
     private static final int MSG_CAMERA_DEVICE_OPENED = 1;
     private static final int MSG_SURFACE_SIZE_FOUND = 2;
@@ -68,6 +85,10 @@ public class PreviewCamera extends Fragment implements Handler.Callback{
     private String SELECTED_CAMERA_ID = null;
     private Size SELECTED_RESOLUTION = null;
 
+    private ImageReader mCaptureImageReader = null;
+
+    private Button mCaptureButton;
+
 
     public PreviewCamera() {
         // Required empty public constructor
@@ -87,6 +108,68 @@ public class PreviewCamera extends Fragment implements Handler.Callback{
 
 
     }
+    private  ImageReader.OnImageAvailableListener onImageAvailableListener = new ImageReader.OnImageAvailableListener (){
+        @Override
+        public void onImageAvailable(ImageReader reader) {
+            saveRawImage(reader);
+        }
+    };
+
+    private void saveRawImage(ImageReader reader) {
+        Image image = reader.acquireLatestImage();
+        byte[] bytes = getJpegData(image); // step 8: get the jpeg data
+        writeBytesToFile(bytes);
+    }
+
+
+    private void writeBytesToFile(byte[] input) {
+        android.util.Log.e ("************************************","writeImageToFile");
+        File file = getOutputFile();
+        FileOutputStream fos = null;
+        try {
+            fos = new FileOutputStream(file);
+            fos.write(input);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (fos != null) {
+                    fos.close();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+    }
+
+
+    private byte[] getJpegData(Image image) {
+        ByteBuffer buffer = image.getPlanes()[0].getBuffer();
+        byte[] byteArray = new byte[buffer.remaining()];
+        buffer.get(byteArray);
+        return byteArray;
+    }
+
+    private File getOutputFile() { // step 9: make the output file name
+        File dir = new File(Environment.getExternalStorageDirectory().toString(), "MyPictures");
+        if (!dir.exists()) {
+            dir.mkdir();
+        }
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        File imageFile = new File (dir.getPath() + File.separator + "PIC_"+timeStamp+".jpg");
+
+        Log.d("*********************************","imagefilename="+imageFile.getAbsolutePath());
+
+        return imageFile;
+    }
+
+    private void setupImageReader(int height, int width){
+        mCaptureImageReader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 3);
+        mCaptureImageReader.setOnImageAvailableListener(onImageAvailableListener, mHandler);
+    }
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
@@ -97,6 +180,17 @@ public class PreviewCamera extends Fragment implements Handler.Callback{
         mSurfaceView = mRootView.findViewById(R.id.surface_view);
         mCameraIdSpinner = mRootView.findViewById(R.id.spinner_camera_id);
         mCameraResSpinner = mRootView.findViewById(R.id.spinner_camera_resolution);
+        mCaptureButton = mRootView.findViewById(R.id.capture_image_bt);
+        mCaptureButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                handleCaptureImage();
+
+            }
+        });
+
+
+
 
         mSurfaceHolder = mSurfaceView.getHolder();
         mSurfaceHolder.addCallback(new SurfaceHolder.Callback() {
@@ -169,12 +263,10 @@ public class PreviewCamera extends Fragment implements Handler.Callback{
                 @Override
                 public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                     Logger.d("Camera res spinner current resolution : "+mCameraSizeStringList.get(position)+" of camera id: "+ cameraId);
+                    setupImageReader(mCameraSizeList.get(position).getHeight(),mCameraSizeList.get(position).getWidth());
                     SELECTED_RESOLUTION = mCameraSizeList.get(position);
                     CAMERA_CONFIGURED =false;
-                    if(mCameraCaptureSession!=null)
-                        mCameraCaptureSession.close();
-                    if(mCameraDevice!=null)
-                        mCameraDevice.close();
+                    closeCamera();
                     initializeCamera();
                 }
 
@@ -188,6 +280,15 @@ public class PreviewCamera extends Fragment implements Handler.Callback{
             e.printStackTrace();
         }
 
+    }
+
+
+
+    private void closeCamera(){
+        if(mCameraCaptureSession!=null)
+            mCameraCaptureSession.close();
+        if(mCameraDevice!=null)
+            mCameraDevice.close();
     }
 
 
@@ -227,6 +328,39 @@ public class PreviewCamera extends Fragment implements Handler.Callback{
 
 
     }
+    private void handleCaptureImage() {
+        if (mCameraDevice != null) {
+            if (mCameraCaptureSession != null) {
+                try {
+                    CaptureRequest.Builder captureRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
+                    captureRequestBuilder.addTarget(mCaptureImageReader.getSurface());
+                    mCameraCaptureSession.capture(captureRequestBuilder.build(), new CameraCaptureSession.CaptureCallback() {
+                        @Override
+                        public void onCaptureStarted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, long timestamp, long frameNumber) {
+                            super.onCaptureStarted(session, request, timestamp, frameNumber);
+                        }
+
+                        @Override
+                        public void onCaptureProgressed(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull CaptureResult partialResult) {
+                            super.onCaptureProgressed(session, request, partialResult);
+                        }
+
+                        @Override
+                        public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
+                            super.onCaptureCompleted(session, request, result);
+                        }
+
+                        @Override
+                        public void onCaptureFailed(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull CaptureFailure failure) {
+                            super.onCaptureFailed(session, request, failure);
+                        }
+                    }, mHandler);
+                } catch (CameraAccessException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
 
 
 
@@ -256,6 +390,7 @@ public class PreviewCamera extends Fragment implements Handler.Callback{
 
         List<Surface> surfaceList = new ArrayList<Surface>();
         surfaceList.add(mCameraSurface);
+        surfaceList.add(mCaptureImageReader.getSurface());
 
         try {
             mCameraDevice.createCaptureSession(surfaceList, mCameraCaptureSessionStateCallback, null);
@@ -288,4 +423,13 @@ public class PreviewCamera extends Fragment implements Handler.Callback{
     }
 
 
+    @Override
+    public void onClick(View view) {
+
+        int id  = view.getId();
+        switch (id){
+            case R.id.capture_image_bt:
+                break;
+        }
+    }
 }
