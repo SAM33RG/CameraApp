@@ -1,4 +1,4 @@
-Using NavigationView to Switch between preview, capture Image and record video Fragments.
+Using Fragments to Switch between preview, capture Image and record video Fragments.
 
 Use of Material design throughout the app.
 

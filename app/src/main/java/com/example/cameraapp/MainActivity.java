@@ -8,6 +8,11 @@ import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.widget.Toast;
 
+import com.orhanobut.logger.AndroidLogAdapter;
+import com.orhanobut.logger.FormatStrategy;
+import com.orhanobut.logger.Logger;
+import com.orhanobut.logger.PrettyFormatStrategy;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,6 +31,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        setUpLogger();
     }
 
 
@@ -38,10 +44,12 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        if (permissionsRequestList!=null) {
+        if (permissionsRequestList.size()!=0) {
             requestPermissions(permissionsRequestList.toArray(new String[permissionsRequestList.size()]), PERMISSION_REQUEST_CODE);
         }else {
             Toast.makeText(getApplicationContext(),"All permission granted",Toast.LENGTH_SHORT).show();
+            getSupportFragmentManager().beginTransaction().add(R.id.container,new PreviewCamera()).addToBackStack(null).commit();
+
         }
     }
 
@@ -73,5 +81,17 @@ public class MainActivity extends AppCompatActivity {
             }
 
         }
+    }
+
+    private void setUpLogger(){
+
+        FormatStrategy formatStrategy = PrettyFormatStrategy.newBuilder()
+                .showThreadInfo(true)  // (Optional) Whether to show thread info or not. Default true
+                .methodCount(3)         // (Optional) How many method line to show. Default 2
+                .methodOffset(7)        // (Optional) Hides internal method calls up to offset. Default 5
+                .tag("*************** ")   // (Optional) Global tag for every log. Default PRETTY_LOGGER
+                .build();
+
+        Logger.addLogAdapter(new AndroidLogAdapter(formatStrategy));
     }
 }
