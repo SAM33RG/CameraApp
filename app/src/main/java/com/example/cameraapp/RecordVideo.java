@@ -2,6 +2,7 @@ package com.example.cameraapp;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
@@ -12,6 +13,7 @@ import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
+import android.net.Uri;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
@@ -87,7 +89,7 @@ public class RecordVideo extends Fragment implements Handler.Callback {
     private MediaRecorder mMediaRecorder;
 
     private static final String mDirectory = "CustomCamera";
-    private String mRecentImageName = null;
+    private String mRecentVideoName = null;
 
     private Button mVideoRecordButton;
     private Button mOpenGalleryButton;
@@ -106,6 +108,18 @@ public class RecordVideo extends Fragment implements Handler.Callback {
         mCameraIdSpinner = mRootView.findViewById(R.id.spinner_camera_id);
         mCameraResSpinner = mRootView.findViewById(R.id.spinner_camera_resolution);
         mVideoRecordButton = mRootView.findViewById(R.id.capture_image_bt);
+        mOpenGalleryButton = mRootView.findViewById(R.id.open_gallery_bt);
+
+
+        mOpenGalleryButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+
+                if(mRecentVideoName==null)
+                    return;
+                openGallery();
+            }
+        });
 
 
         mSurfaceHolder = mSurfaceView.getHolder();
@@ -223,10 +237,27 @@ public class RecordVideo extends Fragment implements Handler.Callback {
             public void run() {
                 mMediaRecorder.stop();
                 mMediaRecorder.reset();
+                mOpenGalleryButton.setVisibility(View.VISIBLE);
                 mVideoRecordButton.setText("Record");
                 mIsRecordingVideo = false;
             }
         });
+    }
+
+    private void openGallery(){
+
+        if(mRecentVideoName==null){
+            Toast.makeText(getContext(),"NO Image captured",Toast.LENGTH_SHORT).show();
+            return;
+        }
+        File sdDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+        File file = new File(sdDir, mDirectory);
+
+        Intent intent = new Intent();
+        intent.setAction(Intent.ACTION_VIEW);
+        intent.setDataAndType(Uri.withAppendedPath(Uri.fromFile(file),mRecentVideoName), "video/*");
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getContext().startActivity(intent);
     }
 
 
@@ -312,7 +343,7 @@ public class RecordVideo extends Fragment implements Handler.Callback {
         }
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
         File videoFile = new File (dir.getPath() + File.separator + "VID_"+timeStamp+".mp4");
-        mRecentImageName = videoFile.getName();
+        mRecentVideoName = videoFile.getName();
 
         Logger.d("file saved : "+videoFile.getAbsolutePath());
         Toast.makeText(getContext(),"Video saving in "+mDirectory+".", Toast.LENGTH_SHORT).show();

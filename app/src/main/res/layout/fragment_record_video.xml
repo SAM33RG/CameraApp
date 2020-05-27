@@ -28,60 +28,71 @@
         app:layout_constraintStart_toStartOf="parent" />
 
     <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/constraintLayout"
+        android:id="@+id/camera_settings_layout"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:background="#66FFFFFF"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-        <Spinner
-            android:id="@+id/spinner_camera_id"
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/camer_id_layout"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:layout_marginTop="8dp"
-            app:layout_constraintBottom_toBottomOf="@+id/camera_id_tv"
-            app:layout_constraintStart_toEndOf="@+id/camera_id_tv"
-            app:layout_constraintTop_toTopOf="@+id/camera_id_tv" />
-
-        <TextView
-            android:id="@+id/camera_id_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:text="Camer Id: "
+            android:background="#66FFFFFF"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
-    </androidx.constraintlayout.widget.ConstraintLayout>
+            app:layout_constraintTop_toTopOf="parent">
 
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:background="#66FFFFFF"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/constraintLayout">
+            <Spinner
+                android:id="@+id/spinner_camera_id"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_marginTop="8dp"
+                app:layout_constraintBottom_toBottomOf="@+id/camera_id_tv"
+                app:layout_constraintStart_toEndOf="@+id/camera_id_tv"
+                app:layout_constraintTop_toTopOf="@+id/camera_id_tv" />
 
-        <Spinner
-            android:id="@+id/spinner_camera_resolution"
+            <TextView
+                android:id="@+id/camera_id_tv"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="Camer Id: "
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/cameera_res_layout"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
             android:layout_marginTop="8dp"
-            app:layout_constraintBottom_toBottomOf="@+id/camera_res_tv"
-            app:layout_constraintStart_toEndOf="@+id/camera_res_tv"
-            app:layout_constraintTop_toTopOf="@+id/camera_res_tv" />
+            android:background="#66FFFFFF"
+            app:layout_constraintStart_toStartOf="@+id/camer_id_layout"
+            app:layout_constraintTop_toBottomOf="@+id/camer_id_layout">
 
-        <TextView
-            android:id="@+id/camera_res_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:text="Camer resolution: "
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            <Spinner
+                android:id="@+id/spinner_camera_resolution"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_marginTop="8dp"
+                app:layout_constraintBottom_toBottomOf="@+id/camera_res_tv"
+                app:layout_constraintStart_toEndOf="@+id/camera_res_tv"
+                app:layout_constraintTop_toTopOf="@+id/camera_res_tv" />
+
+            <TextView
+                android:id="@+id/camera_res_tv"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="Camer resolution: "
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <Button

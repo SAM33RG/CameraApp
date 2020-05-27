@@ -164,8 +164,14 @@ public class CaptureStillImage extends Fragment implements Handler.Callback, Vie
                 e.printStackTrace();
             }
         }
-        openGallery();
+//        openGallery();
+        getActivity().runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                mOpenGalleryButton.setVisibility(View.VISIBLE);
 
+            }
+        });
     }
 
     private byte[] getJpegData(Image image) {
@@ -235,6 +241,8 @@ public class CaptureStillImage extends Fragment implements Handler.Callback, Vie
             @Override
             public void onClick(View view) {
 
+                if(mRecentImageName==null)
+                    return;
                 openGallery();
             }
         });
