@@ -2,7 +2,10 @@ package com.example.cameraapp;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
+import android.graphics.Matrix;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
@@ -36,6 +39,7 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.Spinner;
+import android.widget.Toast;
 
 import com.orhanobut.logger.Logger;
 
@@ -67,7 +71,7 @@ public class PreviewCamera extends Fragment implements Handler.Callback, View.On
     private CameraManager mCameraManager;
     private ArrayList<String> mCameraIdList;
 
-    private ArrayList<Size>mCameraSizeList;
+    private ArrayList<Size> mCameraSizeListKnownAsRatio;
     ArrayList<String> mCameraSizeStringList = new ArrayList<>();
 
     private CameraDevice mCameraDevice;
@@ -117,10 +121,45 @@ public class PreviewCamera extends Fragment implements Handler.Callback, View.On
 
     private void saveRawImage(ImageReader reader) {
         Image image = reader.acquireLatestImage();
-        byte[] bytes = getJpegData(image); // step 8: get the jpeg data
-        writeBytesToFile(bytes);
+        byte[] bytes = getJpegData(image);
+        rotateAndSaveImage(bytes);
     }
 
+
+    private void rotateAndSaveImage(byte[] input) {
+        Bitmap sourceBitmap = BitmapFactory.decodeByteArray(input, 0, input.length);
+        Matrix m = new Matrix();
+        float orientation = 90;
+        try {
+            orientation = mCameraManager.getCameraCharacteristics(SELECTED_CAMERA_ID).get(CameraCharacteristics.SENSOR_ORIENTATION);
+            Logger.d("camera orientaion :"+ orientation);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+
+        m.setRotate(orientation, sourceBitmap.getWidth(), sourceBitmap.getHeight());
+        Bitmap rotatedBitmap = Bitmap.createBitmap(sourceBitmap, 0, 0, sourceBitmap.getWidth(), sourceBitmap.getHeight(), m, true);
+
+        File f = getOutputFile();
+
+        FileOutputStream fos = null;
+
+        try {
+            fos = new FileOutputStream(f);
+            rotatedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos);
+            fos.flush();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                fos.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
 
     private void writeBytesToFile(byte[] input) {
         android.util.Log.e ("************************************","writeImageToFile");
@@ -153,7 +192,7 @@ public class PreviewCamera extends Fragment implements Handler.Callback, View.On
         return byteArray;
     }
 
-    private File getOutputFile() { // step 9: make the output file name
+    private File getOutputFile() {
         File dir = new File(Environment.getExternalStorageDirectory().toString(), "MyPictures");
         if (!dir.exists()) {
             dir.mkdir();
@@ -161,7 +200,8 @@ public class PreviewCamera extends Fragment implements Handler.Callback, View.On
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
         File imageFile = new File (dir.getPath() + File.separator + "PIC_"+timeStamp+".jpg");
 
-        Log.d("*********************************","imagefilename="+imageFile.getAbsolutePath());
+        Logger.d("file saved : "+imageFile.getAbsolutePath());
+        Toast.makeText(getContext(),"Picture saved in MYPictures.", Toast.LENGTH_SHORT).show();
 
         return imageFile;
     }
@@ -246,16 +286,39 @@ public class PreviewCamera extends Fragment implements Handler.Callback, View.On
         });
     }
 
+    private boolean matchAspectRatio(Size s,Size aspectRatio){
+        float f  = Math.abs(((float)s.getWidth()/(float) s.getHeight())-((float)aspectRatio.getWidth()/(float)aspectRatio.getHeight()));
+        if(f<0.000001){
+            return true;
+        }
+        return false;
+    }
+
     private void populateCameraResSpinner(final String cameraId) {
 
         try {
             CameraCharacteristics characteristics = mCameraManager.getCameraCharacteristics(cameraId);
             StreamConfigurationMap configs = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-            mCameraSizeList =  new ArrayList<Size>(Arrays.asList(configs.getOutputSizes(SurfaceTexture.class))) ;
+            ArrayList<Size> allSizeList = new ArrayList<Size>(Arrays.asList(configs.getOutputSizes(SurfaceTexture.class))) ;
+            mCameraSizeListKnownAsRatio =  new ArrayList<>() ;
             mCameraSizeStringList.clear();
-            for(Size s : mCameraSizeList){
-//                Logger.d(""+s.getHeight()+"X"+s.getWidth());
-                mCameraSizeStringList.add(""+s.getHeight()+"X"+s.getWidth());
+            for(Size s : allSizeList){
+                if(matchAspectRatio(s,new Size(4,3))){
+                    mCameraSizeStringList.add(""+s.getHeight()+"X"+s.getWidth()+" 3:4");
+                    mCameraSizeListKnownAsRatio.add(s);
+
+                }else if(matchAspectRatio(s,new Size(1,1))){
+                    mCameraSizeStringList.add(""+s.getHeight()+"X"+s.getWidth()+" 1:1");
+                    mCameraSizeListKnownAsRatio.add(s);
+
+                }else if(matchAspectRatio(s,new Size(16,9))){
+                    mCameraSizeStringList.add(""+s.getHeight()+"X"+s.getWidth()+" 9:16");
+                    mCameraSizeListKnownAsRatio.add(s);
+
+                }
+
+//                Logger.d(""+s.getHeight()+"X"+s.getWidth()+" "+(float)s.getWidth()/ (float)s.getHeight());
+//                mCameraSizeStringList.add(""+s.getHeight()+"X"+s.getWidth());
             }
             ArrayAdapter<String> adapter = new ArrayAdapter<String>(getContext(),R.layout.support_simple_spinner_dropdown_item, mCameraSizeStringList);
             mCameraResSpinner.setAdapter(adapter);
@@ -263,8 +326,8 @@ public class PreviewCamera extends Fragment implements Handler.Callback, View.On
                 @Override
                 public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                     Logger.d("Camera res spinner current resolution : "+mCameraSizeStringList.get(position)+" of camera id: "+ cameraId);
-                    setupImageReader(mCameraSizeList.get(position).getHeight(),mCameraSizeList.get(position).getWidth());
-                    SELECTED_RESOLUTION = mCameraSizeList.get(position);
+                    setupImageReader(mCameraSizeListKnownAsRatio.get(position).getHeight(), mCameraSizeListKnownAsRatio.get(position).getWidth());
+                    SELECTED_RESOLUTION = mCameraSizeListKnownAsRatio.get(position);
                     CAMERA_CONFIGURED =false;
                     closeCamera();
                     initializeCamera();
@@ -333,6 +396,8 @@ public class PreviewCamera extends Fragment implements Handler.Callback, View.On
             if (mCameraCaptureSession != null) {
                 try {
                     CaptureRequest.Builder captureRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
+                    captureRequestBuilder.set(CaptureRequest.JPEG_QUALITY, (byte) 100);
+
                     captureRequestBuilder.addTarget(mCaptureImageReader.getSurface());
                     mCameraCaptureSession.capture(captureRequestBuilder.build(), new CameraCaptureSession.CaptureCallback() {
                         @Override
@@ -408,9 +473,15 @@ public class PreviewCamera extends Fragment implements Handler.Callback, View.On
                 if (mIsCameraSurfaceCreated && mCameraDevice != null && !CAMERA_CONFIGURED) {
 //                    startCamera();
                     CAMERA_CONFIGURED =true;
-                    mSurfaceHolder.setFixedSize(SELECTED_RESOLUTION.getWidth(),SELECTED_RESOLUTION.getHeight());
+
+
+                    /*mSurfaceHolder.setFixedSize(SELECTED_RESOLUTION.getWidth(),SELECTED_RESOLUTION.getHeight());
                     mSurfaceView.setAspectRatio(SELECTED_RESOLUTION.getHeight(),SELECTED_RESOLUTION.getWidth());
-                     mHandler.sendEmptyMessage(MSG_SURFACE_SIZE_FOUND);
+                    */
+
+
+                    setOptimalResolutionForSurfaceView();
+//                    mHandler.sendEmptyMessage(MSG_SURFACE_SIZE_FOUND);
 
                 }
                 break;
@@ -420,6 +491,37 @@ public class PreviewCamera extends Fragment implements Handler.Callback, View.On
         }
         return true;
 
+    }
+
+    private void setOptimalResolutionForSurfaceView(){
+        boolean sizeFound =false;
+        if(SELECTED_RESOLUTION.getWidth()<=1500){
+            mSurfaceView.setAspectRatio(SELECTED_RESOLUTION.getHeight(),SELECTED_RESOLUTION.getWidth());
+            mSurfaceHolder.setFixedSize(SELECTED_RESOLUTION.getWidth(),SELECTED_RESOLUTION.getHeight());
+            sizeFound =true;
+
+        }else{
+            for(Size s: mCameraSizeListKnownAsRatio){
+                float diff =  Math.abs(((float)s.getWidth()/(float) s.getHeight()-(float)SELECTED_RESOLUTION.getWidth()/(float) SELECTED_RESOLUTION.getHeight()));
+                if(diff<0.000001 && s.getHeight()<=1500){
+                    Logger.d("h "+s.getHeight()+" w "+s.getWidth()+" "+(float)s.getWidth()/ (float)s.getHeight());
+                    Logger.d("h "+SELECTED_RESOLUTION.getHeight()+" w "+SELECTED_RESOLUTION.getWidth()+" "+(float)SELECTED_RESOLUTION.getWidth()/(float) SELECTED_RESOLUTION.getHeight());
+
+                    mSurfaceHolder.setFixedSize(s.getWidth(),s.getHeight());
+                    mSurfaceView.setAspectRatio(s.getHeight(),s.getWidth());
+
+
+                    sizeFound =true;
+                    break;
+                }
+            }
+        }
+
+        if(sizeFound){
+            mHandler.sendEmptyMessage(MSG_SURFACE_SIZE_FOUND);
+        }else {
+            Toast.makeText(getContext(),"Please Change Resolution.\nUnable to find resolution match",Toast.LENGTH_SHORT).show();
+        }
     }
 
 
