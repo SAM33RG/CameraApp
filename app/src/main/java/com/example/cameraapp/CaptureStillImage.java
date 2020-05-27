@@ -2,6 +2,7 @@ package com.example.cameraapp;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
@@ -12,6 +13,7 @@ import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureFailure;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureResult;
@@ -19,6 +21,7 @@ import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
+import android.net.Uri;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
@@ -28,7 +31,6 @@ import androidx.fragment.app.Fragment;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
-import android.util.Log;
 import android.util.Size;
 import android.view.LayoutInflater;
 import android.view.Surface;
@@ -56,7 +58,7 @@ import java.util.List;
 import java.util.Locale;
 
 
-public class PreviewCamera extends Fragment implements Handler.Callback, View.OnClickListener{
+public class CaptureStillImage extends Fragment implements Handler.Callback, View.OnClickListener{
     private static final int MSG_CAMERA_SURFACE_CREATED = 0;
     private static final int MSG_CAMERA_DEVICE_OPENED = 1;
     private static final int MSG_SURFACE_SIZE_FOUND = 2;
@@ -90,11 +92,14 @@ public class PreviewCamera extends Fragment implements Handler.Callback, View.On
     private Size SELECTED_RESOLUTION = null;
 
     private ImageReader mCaptureImageReader = null;
+    private static final String mDirectory = "CustomCamera";
+    private String mRecentImageName = null;
 
     private Button mCaptureButton;
+    private Button mOpenGalleryButton;
 
 
-    public PreviewCamera() {
+    public CaptureStillImage() {
         // Required empty public constructor
     }
 
@@ -159,6 +164,8 @@ public class PreviewCamera extends Fragment implements Handler.Callback, View.On
                 e.printStackTrace();
             }
         }
+        openGallery();
+
     }
 
     private void writeBytesToFile(byte[] input) {
@@ -193,15 +200,17 @@ public class PreviewCamera extends Fragment implements Handler.Callback, View.On
     }
 
     private File getOutputFile() {
-        File dir = new File(Environment.getExternalStorageDirectory().toString(), "MyPictures");
+        File sdDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+        File dir = new File(sdDir, mDirectory);
         if (!dir.exists()) {
             dir.mkdir();
         }
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
         File imageFile = new File (dir.getPath() + File.separator + "PIC_"+timeStamp+".jpg");
+        mRecentImageName = imageFile.getName();
 
         Logger.d("file saved : "+imageFile.getAbsolutePath());
-        Toast.makeText(getContext(),"Picture saved in MYPictures.", Toast.LENGTH_SHORT).show();
+        Toast.makeText(getContext(),"Picture saved in "+mDirectory+".", Toast.LENGTH_SHORT).show();
 
         return imageFile;
     }
@@ -211,6 +220,21 @@ public class PreviewCamera extends Fragment implements Handler.Callback, View.On
         mCaptureImageReader.setOnImageAvailableListener(onImageAvailableListener, mHandler);
     }
 
+    private void openGallery(){
+
+        if(mRecentImageName==null){
+            Toast.makeText(getContext(),"NO Image captured",Toast.LENGTH_SHORT).show();
+            return;
+        }
+        File sdDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+        File file = new File(sdDir, mDirectory);
+
+        Intent intent = new Intent();
+        intent.setAction(Intent.ACTION_VIEW);
+        intent.setDataAndType(Uri.withAppendedPath(Uri.fromFile(file),mRecentImageName), "image/*");
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getContext().startActivity(intent);
+    }
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
@@ -221,6 +245,8 @@ public class PreviewCamera extends Fragment implements Handler.Callback, View.On
         mCameraIdSpinner = mRootView.findViewById(R.id.spinner_camera_id);
         mCameraResSpinner = mRootView.findViewById(R.id.spinner_camera_resolution);
         mCaptureButton = mRootView.findViewById(R.id.capture_image_bt);
+        mOpenGalleryButton = mRootView.findViewById(R.id.open_gallery_bt);
+
         mCaptureButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -229,6 +255,13 @@ public class PreviewCamera extends Fragment implements Handler.Callback, View.On
             }
         });
 
+        mOpenGalleryButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+
+                openGallery();
+            }
+        });
 
 
 
@@ -397,7 +430,6 @@ public class PreviewCamera extends Fragment implements Handler.Callback, View.On
                 try {
                     CaptureRequest.Builder captureRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
                     captureRequestBuilder.set(CaptureRequest.JPEG_QUALITY, (byte) 100);
-
                     captureRequestBuilder.addTarget(mCaptureImageReader.getSurface());
                     mCameraCaptureSession.capture(captureRequestBuilder.build(), new CameraCaptureSession.CaptureCallback() {
                         @Override

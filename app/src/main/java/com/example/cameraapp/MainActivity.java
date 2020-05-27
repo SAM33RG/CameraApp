@@ -2,10 +2,12 @@ package com.example.cameraapp;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.transition.Transition;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.StrictMode;
 import android.widget.Toast;
 
 import com.orhanobut.logger.AndroidLogAdapter;
@@ -48,16 +50,18 @@ public class MainActivity extends AppCompatActivity {
             requestPermissions(permissionsRequestList.toArray(new String[permissionsRequestList.size()]), PERMISSION_REQUEST_CODE);
         }else {
             Toast.makeText(getApplicationContext(),"All permission granted",Toast.LENGTH_SHORT).show();
-            getSupportFragmentManager().beginTransaction().add(R.id.container,new PreviewCamera()).addToBackStack(null).commit();
+            getSupportFragmentManager().beginTransaction().add(R.id.container,new CaptureStillImage()).addToBackStack(null).commit();
 
         }
     }
 
-
+//@TODO implement content provider
     @Override
     protected void onStart() {
         super.onStart();
         getPermissionFromUser();
+        StrictMode.VmPolicy.Builder builder = new StrictMode.VmPolicy.Builder();
+        StrictMode.setVmPolicy(builder.build());
 
     }
 
@@ -75,10 +79,13 @@ public class MainActivity extends AppCompatActivity {
                     Toast.makeText(getApplicationContext(),"All permission necessary for app to function",Toast.LENGTH_SHORT).show();
                 }
             }
+            getPermissionFromUser();
+            return;
+            /*
             if(!allPermissionsGrated){
                 getPermissionFromUser();
                 return;
-            }
+            }*/
 
         }
     }
