@@ -50,7 +50,7 @@ public class MainActivity extends AppCompatActivity {
             requestPermissions(permissionsRequestList.toArray(new String[permissionsRequestList.size()]), PERMISSION_REQUEST_CODE);
         }else {
             Toast.makeText(getApplicationContext(),"All permission granted",Toast.LENGTH_SHORT).show();
-            getSupportFragmentManager().beginTransaction().add(R.id.container,new CaptureStillImage()).addToBackStack(null).commit();
+            getSupportFragmentManager().beginTransaction().add(R.id.container,new RecordVideo()).addToBackStack(null).commit();
 
         }
     }

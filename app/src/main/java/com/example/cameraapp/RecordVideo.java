@@ -2,35 +2,25 @@ package com.example.cameraapp;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
-import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.ImageFormat;
-import android.graphics.Matrix;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
-import android.hardware.camera2.CameraMetadata;
-import android.hardware.camera2.CaptureFailure;
 import android.hardware.camera2.CaptureRequest;
-import android.hardware.camera2.CaptureResult;
-import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
-import android.media.Image;
-import android.media.ImageReader;
-import android.net.Uri;
+import android.media.CamcorderProfile;
+import android.media.MediaRecorder;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
+import android.util.Log;
 import android.util.Size;
 import android.view.LayoutInflater;
 import android.view.Surface;
@@ -46,10 +36,7 @@ import android.widget.Toast;
 import com.orhanobut.logger.Logger;
 
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -58,7 +45,11 @@ import java.util.List;
 import java.util.Locale;
 
 
-public class CaptureStillImage extends Fragment implements Handler.Callback, View.OnClickListener{
+/**
+ * A simple {@link Fragment} subclass.
+ */
+public class RecordVideo extends Fragment implements Handler.Callback {
+
     private static final int MSG_CAMERA_SURFACE_CREATED = 0;
     private static final int MSG_CAMERA_DEVICE_OPENED = 1;
     private static final int MSG_SURFACE_SIZE_FOUND = 2;
@@ -91,154 +82,30 @@ public class CaptureStillImage extends Fragment implements Handler.Callback, Vie
     private String SELECTED_CAMERA_ID = null;
     private Size SELECTED_RESOLUTION = null;
 
-    private ImageReader mCaptureImageReader = null;
+    private boolean mIsRecordingVideo;
+
+    private MediaRecorder mMediaRecorder;
+
     private static final String mDirectory = "CustomCamera";
     private String mRecentImageName = null;
 
-    private Button mCaptureButton;
+    private Button mVideoRecordButton;
     private Button mOpenGalleryButton;
 
-
-    public CaptureStillImage() {
+    public RecordVideo() {
         // Required empty public constructor
     }
 
 
-
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-    }
-
-    @Override
-    public void onActivityCreated(@Nullable Bundle savedInstanceState) {
-        super.onActivityCreated(savedInstanceState);
-
-
-    }
-    private  ImageReader.OnImageAvailableListener onImageAvailableListener = new ImageReader.OnImageAvailableListener (){
-        @Override
-        public void onImageAvailable(ImageReader reader) {
-            saveRawImage(reader);
-        }
-    };
-
-    private void saveRawImage(ImageReader reader) {
-        Image image = reader.acquireLatestImage();
-        byte[] bytes = getJpegData(image);
-        rotateAndSaveImage(bytes);
-    }
-
-
-    private void rotateAndSaveImage(byte[] input) {
-        Bitmap sourceBitmap = BitmapFactory.decodeByteArray(input, 0, input.length);
-        Matrix m = new Matrix();
-        float orientation = 90;
-        try {
-            orientation = mCameraManager.getCameraCharacteristics(SELECTED_CAMERA_ID).get(CameraCharacteristics.SENSOR_ORIENTATION);
-            Logger.d("camera orientaion :"+ orientation);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-        }
-
-        m.setRotate(orientation, sourceBitmap.getWidth(), sourceBitmap.getHeight());
-        Bitmap rotatedBitmap = Bitmap.createBitmap(sourceBitmap, 0, 0, sourceBitmap.getWidth(), sourceBitmap.getHeight(), m, true);
-
-        File f = getOutputFile();
-
-        FileOutputStream fos = null;
-
-        try {
-            fos = new FileOutputStream(f);
-            rotatedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos);
-            fos.flush();
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                fos.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-        openGallery();
-
-    }
-
-    private byte[] getJpegData(Image image) {
-        ByteBuffer buffer = image.getPlanes()[0].getBuffer();
-        byte[] byteArray = new byte[buffer.remaining()];
-        buffer.get(byteArray);
-        return byteArray;
-    }
-
-    private File getOutputFile() {
-        File sdDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
-        File dir = new File(sdDir, mDirectory);
-        if (!dir.exists()) {
-            dir.mkdir();
-        }
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-        File imageFile = new File (dir.getPath() + File.separator + "PIC_"+timeStamp+".jpg");
-        mRecentImageName = imageFile.getName();
-
-        Logger.d("file saved : "+imageFile.getAbsolutePath());
-        Toast.makeText(getContext(),"Picture saved in "+mDirectory+".", Toast.LENGTH_SHORT).show();
-
-        return imageFile;
-    }
-
-    private void setupImageReader(int height, int width){
-        mCaptureImageReader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 3);
-        mCaptureImageReader.setOnImageAvailableListener(onImageAvailableListener, mHandler);
-    }
-
-    private void openGallery(){
-
-        if(mRecentImageName==null){
-            Toast.makeText(getContext(),"NO Image captured",Toast.LENGTH_SHORT).show();
-            return;
-        }
-        File sdDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
-        File file = new File(sdDir, mDirectory);
-
-        Intent intent = new Intent();
-        intent.setAction(Intent.ACTION_VIEW);
-        intent.setDataAndType(Uri.withAppendedPath(Uri.fromFile(file),mRecentImageName), "image/*");
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        getContext().startActivity(intent);
-    }
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         // Inflate the layout for this fragment
-        View mRootView = inflater.inflate(R.layout.fragment_preview_camera, container, false);
-
+        View mRootView = inflater.inflate(R.layout.fragment_record_video, container, false);
         mSurfaceView = mRootView.findViewById(R.id.surface_view);
         mCameraIdSpinner = mRootView.findViewById(R.id.spinner_camera_id);
         mCameraResSpinner = mRootView.findViewById(R.id.spinner_camera_resolution);
-        mCaptureButton = mRootView.findViewById(R.id.capture_image_bt);
-        mOpenGalleryButton = mRootView.findViewById(R.id.open_gallery_bt);
-
-        mCaptureButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                handleCaptureImage();
-
-            }
-        });
-
-        mOpenGalleryButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-
-                openGallery();
-            }
-        });
-
+        mVideoRecordButton = mRootView.findViewById(R.id.capture_image_bt);
 
 
         mSurfaceHolder = mSurfaceView.getHolder();
@@ -270,9 +137,99 @@ public class CaptureStillImage extends Fragment implements Handler.Callback, Vie
             e.printStackTrace();
         }
 
+        mVideoRecordButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (!mIsRecordingVideo) {
+                    startVideoRecording();
+                } else {
+                    stopVideoRecording();
+                }
+            }
+        });
+
+
+
         return mRootView;
 
     }
+
+
+    private void startVideoRecording() {
+
+        if (mCameraDevice != null) {
+
+            closeCameraOnlySession();
+
+            setupMediaRecorder();
+
+
+            final CaptureRequest.Builder recordingBuilder;
+            try {
+                List<Surface> surfaceList = new ArrayList<Surface>();
+
+                recordingBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
+
+                surfaceList.add(mCameraSurface);
+                recordingBuilder.addTarget(mCameraSurface);
+
+                surfaceList.add(mMediaRecorder.getSurface());
+                recordingBuilder.addTarget(mMediaRecorder.getSurface());
+
+                mCameraDevice.createCaptureSession(surfaceList, new CameraCaptureSession.StateCallback() {
+                    @Override
+                    public void onConfigured(@NonNull CameraCaptureSession session) {
+                        mCameraCaptureSession = session;
+
+                        try {
+                            mCameraCaptureSession.setRepeatingRequest(recordingBuilder.build(), null, null);
+                        } catch (CameraAccessException e) {
+                            e.printStackTrace();
+                        }
+
+                        Thread mediaRecorderThread = new Thread() {
+                            @Override
+                            public void run() {
+                                mMediaRecorder.start();
+                            }
+                        };
+                        mediaRecorderThread.start();
+
+
+                        getActivity().runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                mVideoRecordButton.setText("Recording...");
+                                mIsRecordingVideo = true;
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+                    }
+                }, mHandler);
+
+            } catch (CameraAccessException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    private void stopVideoRecording() {
+        closeCameraOnlySession();
+        startCameraPreview();
+        getActivity().runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                mMediaRecorder.stop();
+                mMediaRecorder.reset();
+                mVideoRecordButton.setText("Record");
+                mIsRecordingVideo = false;
+            }
+        });
+    }
+
+
 
 
     private void populateCameraIdSpinner() {
@@ -295,6 +252,7 @@ public class CaptureStillImage extends Fragment implements Handler.Callback, Vie
         });
     }
 
+
     private boolean matchAspectRatio(Size s,Size aspectRatio){
         float f  = Math.abs(((float)s.getWidth()/(float) s.getHeight())-((float)aspectRatio.getWidth()/(float)aspectRatio.getHeight()));
         if(f<0.000001){
@@ -312,21 +270,13 @@ public class CaptureStillImage extends Fragment implements Handler.Callback, Vie
             mCameraSizeListKnownAsRatio =  new ArrayList<>() ;
             mCameraSizeStringList.clear();
             for(Size s : allSizeList){
-                if(matchAspectRatio(s,new Size(4,3))){
-                    mCameraSizeStringList.add(""+s.getHeight()+"X"+s.getWidth()+" 3:4");
-                    mCameraSizeListKnownAsRatio.add(s);
-
-                }else if(matchAspectRatio(s,new Size(1,1))){
-                    mCameraSizeStringList.add(""+s.getHeight()+"X"+s.getWidth()+" 1:1");
-                    mCameraSizeListKnownAsRatio.add(s);
-
-                }else if(matchAspectRatio(s,new Size(16,9))){
+                if(matchAspectRatio(s,new Size(16,9)) && s.getHeight()<=1080){
                     mCameraSizeStringList.add(""+s.getHeight()+"X"+s.getWidth()+" 9:16");
                     mCameraSizeListKnownAsRatio.add(s);
 
                 }
 
-//                Logger.d(""+s.getHeight()+"X"+s.getWidth()+" "+(float)s.getWidth()/ (float)s.getHeight());
+//                Logger.d("h "+s.getHeight()+"X w "+s.getWidth()+" "+(float)s.getWidth()/ (float)s.getHeight());
 //                mCameraSizeStringList.add(""+s.getHeight()+"X"+s.getWidth());
             }
             ArrayAdapter<String> adapter = new ArrayAdapter<String>(getContext(),R.layout.support_simple_spinner_dropdown_item, mCameraSizeStringList);
@@ -335,7 +285,7 @@ public class CaptureStillImage extends Fragment implements Handler.Callback, Vie
                 @Override
                 public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                     Logger.d("Camera res spinner current resolution : "+mCameraSizeStringList.get(position)+" of camera id: "+ cameraId);
-                    setupImageReader(mCameraSizeListKnownAsRatio.get(position).getHeight(), mCameraSizeListKnownAsRatio.get(position).getWidth());
+
                     SELECTED_RESOLUTION = mCameraSizeListKnownAsRatio.get(position);
                     CAMERA_CONFIGURED =false;
                     closeCamera();
@@ -354,15 +304,94 @@ public class CaptureStillImage extends Fragment implements Handler.Callback, Vie
 
     }
 
+    private File getOutputFile() {
+        File sdDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+        File dir = new File(sdDir, mDirectory);
+        if (!dir.exists()) {
+            dir.mkdir();
+        }
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        File videoFile = new File (dir.getPath() + File.separator + "VID_"+timeStamp+".mp4");
+        mRecentImageName = videoFile.getName();
+
+        Logger.d("file saved : "+videoFile.getAbsolutePath());
+        Toast.makeText(getContext(),"Video saving in "+mDirectory+".", Toast.LENGTH_SHORT).show();
+
+        return videoFile;
+    }
+
+    private void setupMediaRecorder() {
+
+        if (mMediaRecorder == null) {
+            mMediaRecorder = new MediaRecorder();
+            int orientation = 90;
+            try {
+                orientation = mCameraManager.getCameraCharacteristics(SELECTED_CAMERA_ID).get(CameraCharacteristics.SENSOR_ORIENTATION);
+                Logger.d("camera orientaion :" + orientation);
+            } catch (CameraAccessException e) {
+                e.printStackTrace();
+            }
+
+            mMediaRecorder.setOutputFile(getOutputFile().getAbsolutePath());
+
+            mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+            mMediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
+            mMediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+
+            CamcorderProfile profile = null;
+
+            if(SELECTED_RESOLUTION.getHeight()==1080){
+                profile = CamcorderProfile.get(CamcorderProfile.QUALITY_1080P);
+            }else if(SELECTED_RESOLUTION.getHeight()==720){
+                profile = CamcorderProfile.get(CamcorderProfile.QUALITY_720P);
+            }else{
+                profile = CamcorderProfile.get(CamcorderProfile.QUALITY_480P);
+            }
+
+            mMediaRecorder.setOrientationHint(orientation);
+            mMediaRecorder.setVideoFrameRate(profile.videoFrameRate);
+            mMediaRecorder.setVideoSize(profile.videoFrameWidth, profile.videoFrameHeight);
+            mMediaRecorder.setVideoEncodingBitRate(profile.videoBitRate);
+            mMediaRecorder.setAudioEncodingBitRate(profile.audioBitRate);
+            mMediaRecorder.setAudioSamplingRate(profile.audioSampleRate);
+            mMediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
+            mMediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+
+
+            try {
+                mMediaRecorder.prepare();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+    }
+
 
 
     private void closeCamera(){
-        if(mCameraCaptureSession!=null)
+        if(mCameraCaptureSession!=null){
+
             mCameraCaptureSession.close();
+
+        }
         if(mCameraDevice!=null)
             mCameraDevice.close();
     }
+    private void closeCameraOnlySession(){
+        if(mCameraCaptureSession!=null){
+            try {
+                mCameraCaptureSession.abortCaptures();
+                mCameraCaptureSession.stopRepeating();
 
+            } catch (CameraAccessException e) {
+                e.printStackTrace();
+            }
+            mCameraCaptureSession.close();
+
+        }
+
+    }
 
 
     @SuppressLint("MissingPermission")
@@ -400,44 +429,8 @@ public class CaptureStillImage extends Fragment implements Handler.Callback, Vie
 
 
     }
-    private void handleCaptureImage() {
-        if (mCameraDevice != null) {
-            if (mCameraCaptureSession != null) {
-                try {
-                    CaptureRequest.Builder captureRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
-                    captureRequestBuilder.set(CaptureRequest.JPEG_QUALITY, (byte) 100);
-                    captureRequestBuilder.addTarget(mCaptureImageReader.getSurface());
-                    mCameraCaptureSession.capture(captureRequestBuilder.build(), new CameraCaptureSession.CaptureCallback() {
-                        @Override
-                        public void onCaptureStarted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, long timestamp, long frameNumber) {
-                            super.onCaptureStarted(session, request, timestamp, frameNumber);
-                        }
 
-                        @Override
-                        public void onCaptureProgressed(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull CaptureResult partialResult) {
-                            super.onCaptureProgressed(session, request, partialResult);
-                        }
-
-                        @Override
-                        public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
-                            super.onCaptureCompleted(session, request, result);
-                        }
-
-                        @Override
-                        public void onCaptureFailed(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull CaptureFailure failure) {
-                            super.onCaptureFailed(session, request, failure);
-                        }
-                    }, mHandler);
-                } catch (CameraAccessException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
-
-
-
-    private void startCamera() {
+    private void startCameraPreview() {
 
         mCameraCaptureSessionStateCallback = new CameraCaptureSession.StateCallback() {
             @Override
@@ -463,7 +456,6 @@ public class CaptureStillImage extends Fragment implements Handler.Callback, Vie
 
         List<Surface> surfaceList = new ArrayList<Surface>();
         surfaceList.add(mCameraSurface);
-        surfaceList.add(mCaptureImageReader.getSurface());
 
         try {
             mCameraDevice.createCaptureSession(surfaceList, mCameraCaptureSessionStateCallback, null);
@@ -479,22 +471,12 @@ public class CaptureStillImage extends Fragment implements Handler.Callback, Vie
             case MSG_CAMERA_DEVICE_OPENED:
             case MSG_CAMERA_SURFACE_CREATED:
                 if (mIsCameraSurfaceCreated && mCameraDevice != null && !CAMERA_CONFIGURED) {
-//                    startCamera();
                     CAMERA_CONFIGURED =true;
-
-
-                    /*mSurfaceHolder.setFixedSize(SELECTED_RESOLUTION.getWidth(),SELECTED_RESOLUTION.getHeight());
-                    mSurfaceView.setAspectRatio(SELECTED_RESOLUTION.getHeight(),SELECTED_RESOLUTION.getWidth());
-                    */
-
-
                     setOptimalResolutionForSurfaceView();
-//                    mHandler.sendEmptyMessage(MSG_SURFACE_SIZE_FOUND);
-
                 }
                 break;
             case MSG_SURFACE_SIZE_FOUND:
-                startCamera();
+                startCameraPreview();
                 break;
         }
         return true;
@@ -533,13 +515,4 @@ public class CaptureStillImage extends Fragment implements Handler.Callback, Vie
     }
 
 
-    @Override
-    public void onClick(View view) {
-
-        int id  = view.getId();
-        switch (id){
-            case R.id.capture_image_bt:
-                break;
-        }
-    }
 }
