@@ -3,6 +3,7 @@ package com.example.cameraapp;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.transition.Transition;
+import androidx.viewpager.widget.ViewPager;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
@@ -10,6 +11,7 @@ import android.os.Bundle;
 import android.os.StrictMode;
 import android.widget.Toast;
 
+import com.google.android.material.tabs.TabLayout;
 import com.orhanobut.logger.AndroidLogAdapter;
 import com.orhanobut.logger.FormatStrategy;
 import com.orhanobut.logger.Logger;
@@ -28,14 +30,58 @@ public class MainActivity extends AppCompatActivity {
             Manifest.permission.RECORD_AUDIO
     };
 
+    private TabLayout mTabLayout;
+    private ViewPager mViewPager;
+    private TabAdapter myAdapter;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         setUpLogger();
+
+        mTabLayout = findViewById(R.id.tabLayout);
+        mViewPager = findViewById(R.id.viewpager);
+
     }
 
+    void startFragments(){
+        myAdapter = new TabAdapter(getSupportFragmentManager());
+        myAdapter.addFragment(new CaptureStillImage(), "Image");
+        myAdapter.addFragment(new RecordVideo(), "Video");
+
+        mViewPager.setOffscreenPageLimit(0);
+        mViewPager.setAdapter(myAdapter);
+        mViewPager.addOnPageChangeListener(new ViewPager.OnPageChangeListener() {
+            int currentPosition = 0;
+            @Override
+            public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
+
+            }
+
+            @Override
+            public void onPageSelected(int position) {
+                FragmentLifecycle fragmentToHide = (FragmentLifecycle)myAdapter.getItem(currentPosition);
+                fragmentToHide.onPauseFragment();
+
+                FragmentLifecycle fragmentToShow = (FragmentLifecycle)myAdapter.getItem(position);
+                fragmentToShow.onResumeFragment();
+
+
+                currentPosition = position;
+
+            }
+
+            @Override
+            public void onPageScrollStateChanged(int state) {
+
+            }
+        });
+        mTabLayout.setupWithViewPager(mViewPager);
+        mViewPager.setCurrentItem(0);
+
+    }
 
     private void getPermissionFromUser(){
         List<String>permissionsRequestList = new ArrayList<>();
@@ -50,8 +96,8 @@ public class MainActivity extends AppCompatActivity {
             requestPermissions(permissionsRequestList.toArray(new String[permissionsRequestList.size()]), PERMISSION_REQUEST_CODE);
         }else {
             Toast.makeText(getApplicationContext(),"All permission granted",Toast.LENGTH_SHORT).show();
-            getSupportFragmentManager().beginTransaction().add(R.id.container,new CaptureStillImage()).addToBackStack(null).commit();
-
+//            getSupportFragmentManager().beginTransaction().add(R.id.container,new CaptureStillImage()).addToBackStack(null).commit();
+            startFragments();
         }
     }
 

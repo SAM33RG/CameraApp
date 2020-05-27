@@ -50,7 +50,7 @@ import java.util.Locale;
 /**
  * A simple {@link Fragment} subclass.
  */
-public class RecordVideo extends Fragment implements Handler.Callback {
+public class RecordVideo extends Fragment implements Handler.Callback, FragmentLifecycle {
 
     private static final int MSG_CAMERA_SURFACE_CREATED = 0;
     private static final int MSG_CAMERA_DEVICE_OPENED = 1;
@@ -143,13 +143,6 @@ public class RecordVideo extends Fragment implements Handler.Callback {
 
             }
         });
-        mCameraManager = (CameraManager) getActivity().getSystemService(Context.CAMERA_SERVICE);
-        try {
-            mCameraIdList =  new ArrayList<String>(Arrays.asList(mCameraManager.getCameraIdList()));
-            populateCameraIdSpinner();
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-        }
 
         mVideoRecordButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -165,6 +158,24 @@ public class RecordVideo extends Fragment implements Handler.Callback {
 
 
         return mRootView;
+
+    }
+
+    @Override
+    public void onPauseFragment() {
+        closeCamera();
+    }
+
+    @Override
+    public void onResumeFragment() {
+
+        mCameraManager = (CameraManager) getActivity().getSystemService(Context.CAMERA_SERVICE);
+        try {
+            mCameraIdList =  new ArrayList<String>(Arrays.asList(mCameraManager.getCameraIdList()));
+            populateCameraIdSpinner();
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
 
     }
 

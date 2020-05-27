@@ -58,7 +58,7 @@ import java.util.List;
 import java.util.Locale;
 
 
-public class CaptureStillImage extends Fragment implements Handler.Callback, View.OnClickListener{
+public class CaptureStillImage extends Fragment implements Handler.Callback,FragmentLifecycle{
     private static final int MSG_CAMERA_SURFACE_CREATED = 0;
     private static final int MSG_CAMERA_DEVICE_OPENED = 1;
     private static final int MSG_SURFACE_SIZE_FOUND = 2;
@@ -105,18 +105,6 @@ public class CaptureStillImage extends Fragment implements Handler.Callback, Vie
 
 
 
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-    }
-
-    @Override
-    public void onActivityCreated(@Nullable Bundle savedInstanceState) {
-        super.onActivityCreated(savedInstanceState);
-
-
-    }
     private  ImageReader.OnImageAvailableListener onImageAvailableListener = new ImageReader.OnImageAvailableListener (){
         @Override
         public void onImageAvailable(ImageReader reader) {
@@ -270,6 +258,23 @@ public class CaptureStillImage extends Fragment implements Handler.Callback, Vie
 
             }
         });
+        return mRootView;
+
+    }
+
+    @Override
+    public void onPauseFragment() {
+        closeCamera();
+    }
+
+    @Override
+    public void onResumeFragment() {
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
         mCameraManager = (CameraManager) getActivity().getSystemService(Context.CAMERA_SERVICE);
         try {
             mCameraIdList =  new ArrayList<String>(Arrays.asList(mCameraManager.getCameraIdList()));
@@ -278,10 +283,13 @@ public class CaptureStillImage extends Fragment implements Handler.Callback, Vie
             e.printStackTrace();
         }
 
-        return mRootView;
-
     }
 
+    @Override
+    public void onStart() {
+        super.onStart();
+        onResumeFragment();
+    }
 
     private void populateCameraIdSpinner() {
 
@@ -541,13 +549,5 @@ public class CaptureStillImage extends Fragment implements Handler.Callback, Vie
     }
 
 
-    @Override
-    public void onClick(View view) {
 
-        int id  = view.getId();
-        switch (id){
-            case R.id.capture_image_bt:
-                break;
-        }
-    }
 }
