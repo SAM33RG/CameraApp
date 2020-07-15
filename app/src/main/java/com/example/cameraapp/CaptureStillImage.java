@@ -1,6 +1,7 @@
 package com.example.cameraapp;
 
 import android.annotation.SuppressLint;
+import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
@@ -22,6 +23,7 @@ import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
@@ -43,7 +45,16 @@ import android.widget.Button;
 import android.widget.Spinner;
 import android.widget.Toast;
 
+import com.androidnetworking.AndroidNetworking;
+import com.androidnetworking.common.Priority;
+import com.androidnetworking.error.ANError;
+import com.androidnetworking.interfaces.DownloadListener;
+import com.androidnetworking.interfaces.DownloadProgressListener;
+import com.androidnetworking.interfaces.JSONObjectRequestListener;
+import com.androidnetworking.interfaces.UploadProgressListener;
 import com.orhanobut.logger.Logger;
+
+import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -56,6 +67,8 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+
 
 
 public class CaptureStillImage extends Fragment implements Handler.Callback,FragmentLifecycle{
@@ -94,9 +107,14 @@ public class CaptureStillImage extends Fragment implements Handler.Callback,Frag
     private ImageReader mCaptureImageReader = null;
     private static final String mDirectory = "CustomCamera";
     private String mRecentImageName = null;
+    private String mRecentImageWithoutExtension = null;
+    private File imageFile;
 
     private Button mCaptureButton;
     private Button mOpenGalleryButton;
+    private Button mLowLightButton;
+
+    private View mCameraSettingLayout;
 
 
     public CaptureStillImage() {
@@ -157,6 +175,8 @@ public class CaptureStillImage extends Fragment implements Handler.Callback,Frag
             @Override
             public void run() {
                 mOpenGalleryButton.setVisibility(View.VISIBLE);
+                mCameraSettingLayout.setVisibility(View.VISIBLE);
+                mLowLightButton.setVisibility(View.VISIBLE);
 
             }
         });
@@ -176,8 +196,13 @@ public class CaptureStillImage extends Fragment implements Handler.Callback,Frag
             dir.mkdir();
         }
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-        File imageFile = new File (dir.getPath() + File.separator + "PIC_"+timeStamp+".jpg");
+        imageFile = new File (dir.getPath() + File.separator + "PIC_"+timeStamp+".jpg");
         mRecentImageName = imageFile.getName();
+        mRecentImageWithoutExtension = "PIC_"+timeStamp;
+
+        Logger.d("name "+mRecentImageName);
+        Logger.d("dir "+dir.getAbsolutePath());
+
 
         Logger.d("file saved : "+imageFile.getAbsolutePath());
         Toast.makeText(getContext(),"Picture saved in "+mDirectory+".", Toast.LENGTH_SHORT).show();
@@ -216,6 +241,8 @@ public class CaptureStillImage extends Fragment implements Handler.Callback,Frag
         mCameraResSpinner = mRootView.findViewById(R.id.spinner_camera_resolution);
         mCaptureButton = mRootView.findViewById(R.id.capture_image_bt);
         mOpenGalleryButton = mRootView.findViewById(R.id.open_gallery_bt);
+        mCameraSettingLayout = mRootView.findViewById(R.id.camera_settings_layout);
+        mLowLightButton = mRootView.findViewById(R.id.low_light_button);
 
         mCaptureButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -232,6 +259,13 @@ public class CaptureStillImage extends Fragment implements Handler.Callback,Frag
                 if(mRecentImageName==null)
                     return;
                 openGallery();
+            }
+        });
+
+        mLowLightButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                doUploadPhoto(imageFile);
             }
         });
 
@@ -416,13 +450,42 @@ public class CaptureStillImage extends Fragment implements Handler.Callback,Frag
 
 
     }
+    private CameraCaptureSession.CaptureCallback mCaptureCallback =  new CameraCaptureSession.CaptureCallback() {
+        @Override
+        public void onCaptureStarted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, long timestamp, long frameNumber) {
+            super.onCaptureStarted(session, request, timestamp, frameNumber);
+        }
+
+        @Override
+        public void onCaptureProgressed(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull CaptureResult partialResult) {
+            super.onCaptureProgressed(session, request, partialResult);
+        }
+
+        @Override
+        public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
+            super.onCaptureCompleted(session, request, result);
+        }
+
+        @Override
+        public void onCaptureFailed(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull CaptureFailure failure) {
+            super.onCaptureFailed(session, request, failure);
+        }
+    };
+
     private void handleCaptureImage() {
         if (mCameraDevice != null) {
             if (mCameraCaptureSession != null) {
                 try {
+                    mCameraSettingLayout.setVisibility(View.GONE);
                     CaptureRequest.Builder captureRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
                     captureRequestBuilder.set(CaptureRequest.JPEG_QUALITY, (byte) 100);
                     captureRequestBuilder.addTarget(mCaptureImageReader.getSurface());
+                    captureRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_ON_ALWAYS_FLASH);
+                    captureRequestBuilder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_OFF);
+                    Logger.d(       "flash info"+         mCameraManager.getCameraCharacteristics(SELECTED_CAMERA_ID).get(CameraCharacteristics.FLASH_INFO_AVAILABLE));
+//                    captureRequestBuilder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_TORCH);
+
+
                     mCameraCaptureSession.capture(captureRequestBuilder.build(), new CameraCaptureSession.CaptureCallback() {
                         @Override
                         public void onCaptureStarted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, long timestamp, long frameNumber) {
@@ -462,6 +525,11 @@ public class CaptureStillImage extends Fragment implements Handler.Callback,Frag
 
                 try {
                     CaptureRequest.Builder previewRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+
+                    previewRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_ON_ALWAYS_FLASH);
+                    previewRequestBuilder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_OFF);
+//                    previewRequestBuilder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH);
+
 
                     previewRequestBuilder.addTarget(mCameraSurface);
 
@@ -548,6 +616,77 @@ public class CaptureStillImage extends Fragment implements Handler.Callback,Frag
         }
     }
 
+    private void doUploadPhoto(File photoUpload) {
+        final ProgressDialog pd  = new ProgressDialog(getActivity());
+        pd.setMessage("uploading");
+        pd.show();
+        AndroidNetworking.upload("http://192.168.0.152:3000/api/v1/uploadll")
+                .addMultipartFile("image",photoUpload)
+                .addMultipartParameter("email","sameer@gmail.com")
+                .setTag("uploadTest")
+                .setPriority(Priority.HIGH)
+                .build()
+                .setUploadProgressListener(new UploadProgressListener() {
+                    @Override
+                    public void onProgress(long bytesUploaded, long totalBytes) {
+                        // do anything with progress
+                      //  progress.setText(""+(bytesUploaded*100)/totalBytes);
+                        Logger.d(""+(bytesUploaded*100)/totalBytes);
+                    }
+                })
+                .getAsJSONObject(new JSONObjectRequestListener() {
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        // do anything with response
+                        Logger.d(response);
+                        pd.dismiss();
+                        doDownloadPhoto();
+                      //  isVisible =true;
+                        //printBtn.setVisibility(View.VISIBLE);
+                    }
+                    @Override
+                    public void onError(ANError error) {
+                        // handle error
+                        Logger.e(error.toString());
+                    }
+                });
+    }
+
+    private void doDownloadPhoto(){
+
+        final ProgressDialog pd  = new ProgressDialog(getActivity());
+        pd.setMessage("working");
+        pd.show();
+
+        File sdDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+        File dir = new File(sdDir, mDirectory);
+
+        AndroidNetworking.download("http://192.168.0.152:3000/api/v1/downloadll",dir.getAbsolutePath(),mRecentImageWithoutExtension+"_low_light_enhanced.jpg")
+                .addHeaders("email", "sameer@gmail.com")
+                .setTag("downloadTest")
+                .setPriority(Priority.MEDIUM)
+                .build()
+                .setDownloadProgressListener(new DownloadProgressListener() {
+                    @Override
+                    public void onProgress(long bytesDownloaded, long totalBytes) {
+                        // do anything with progress
+                        Logger.d(""+(bytesDownloaded*100)/totalBytes);
+
+                    }
+                })
+                .startDownload(new DownloadListener() {
+                    @Override
+                    public void onDownloadComplete() {
+                        // do anything after completion
+                        pd.dismiss();
+                        Toast.makeText(getContext(),"low_light enhanced version downloaded",Toast.LENGTH_SHORT).show();
+                    }
+                    @Override
+                    public void onError(ANError error) {
+                        // handle error
+                    }
+                });
+    }
 
 
 }

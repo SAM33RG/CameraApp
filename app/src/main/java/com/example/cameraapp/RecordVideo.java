@@ -94,6 +94,8 @@ public class RecordVideo extends Fragment implements Handler.Callback, FragmentL
     private Button mVideoRecordButton;
     private Button mOpenGalleryButton;
 
+    private View mCameraSettings;
+
     public RecordVideo() {
         // Required empty public constructor
     }
@@ -109,6 +111,7 @@ public class RecordVideo extends Fragment implements Handler.Callback, FragmentL
         mCameraResSpinner = mRootView.findViewById(R.id.spinner_camera_resolution);
         mVideoRecordButton = mRootView.findViewById(R.id.capture_image_bt);
         mOpenGalleryButton = mRootView.findViewById(R.id.open_gallery_bt);
+        mCameraSettings = mRootView.findViewById(R.id.camera_settings_layout);
 
 
         mOpenGalleryButton.setOnClickListener(new View.OnClickListener() {
@@ -149,8 +152,11 @@ public class RecordVideo extends Fragment implements Handler.Callback, FragmentL
             public void onClick(View view) {
                 if (!mIsRecordingVideo) {
                     startVideoRecording();
+                    mCameraSettings.setVisibility(View.GONE);
                 } else {
                     stopVideoRecording();
+                    mCameraSettings.setVisibility(View.VISIBLE);
+
                 }
             }
         });
@@ -224,7 +230,7 @@ public class RecordVideo extends Fragment implements Handler.Callback, FragmentL
                         getActivity().runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
-                                mVideoRecordButton.setText("Recording...");
+                                mVideoRecordButton.setText("stop");
                                 mIsRecordingVideo = true;
                             }
                         });

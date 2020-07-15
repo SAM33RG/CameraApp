@@ -27,7 +27,8 @@ public class MainActivity extends AppCompatActivity {
     private static final String[] PERMISSIONS = {
             android.Manifest.permission.CAMERA,
             android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
-            Manifest.permission.RECORD_AUDIO
+            Manifest.permission.RECORD_AUDIO,
+
     };
 
     private TabLayout mTabLayout;
